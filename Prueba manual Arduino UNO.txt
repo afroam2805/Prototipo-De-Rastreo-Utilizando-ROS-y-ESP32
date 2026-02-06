@@ -1,0 +1,84 @@
+//Este código funciona como prueba manual en este código se deben ingresar las coordenadas
+#include <Wire.h>
+
+#define I2C_SLAVE_ADDR 0x04
+#define SERIAL_BAUD 9600
+
+String line;
+
+void sendI2C4(uint8_t foundFlag, uint8_t cx, uint8_t cy, uint8_t shape) {
+  Wire.beginTransmission(I2C_SLAVE_ADDR);
+  Wire.write(foundFlag);
+  Wire.write(cx);
+  Wire.write(cy);
+  Wire.write(shape);
+  uint8_t err = Wire.endTransmission();
+
+  Serial.print("Enviado I2C -> found=");
+  Serial.print(foundFlag);
+  Serial.print(" cx=");
+  Serial.print(cx);
+  Serial.print(" cy=");
+  Serial.print(cy);
+  Serial.print(" shape=");
+  Serial.print(shape);
+  Serial.print(" | endTransmission=");
+  Serial.println(err);
+}
+
+// Parsear "a,b,c,d" o "a b c d"
+bool parseFourInts(const String &s, int &a, int &b, int &c, int &d) {
+  String t = s;
+  t.trim();
+  if (t.length() == 0) return false;
+  t.replace(',', ' ');
+
+  int vals[4], count = 0;
+  int i = 0;
+  while (i < (int)t.length() && count < 4) {
+    while (i < (int)t.length() && t[i] == ' ') i++;
+    if (i >= (int)t.length()) break;
+    int j = i;
+    while (j < (int)t.length() && t[j] != ' ') j++;
+    vals[count++] = t.substring(i, j).toInt();
+    i = j;
+  }
+  if (count != 4) return false;
+
+  a = vals[0]; b = vals[1]; c = vals[2]; d = vals[3];
+  return true;
+}
+
+void setup() {
+  Serial.begin(SERIAL_BAUD);
+  Serial.println("Arduino I2C maestro listo.");
+  Serial.println("Usa: found,cx,cy,shape  (ej: 1,40,25,2)");
+
+  Wire.begin();          // Maestro
+  Wire.setClock(100000); // 100 kHz
+}
+
+void loop() {
+  while (Serial.available()) {
+    char ch = Serial.read();
+    if (ch == '\n' || ch == '\r') {
+      if (line.length() > 0) {
+        int f, x, y, s;
+        if (parseFourInts(line, f, x, y, s)) {
+          f = constrain(f, 0, 1);
+          x = constrain(x, 0, 255);
+          y = constrain(y, 0, 255);
+          s = constrain(s, 0, 255);
+
+          sendI2C4((uint8_t)f, (uint8_t)x, (uint8_t)y, (uint8_t)s);
+        } else {
+          Serial.println("Formato inválido. Ej: 1,40,25,2");
+        }
+      }
+      line = "";
+    } else {
+      line += ch;
+      if (line.length() > 60) line.remove(0, line.length() - 60);
+    }
+  }
+}
